@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 from std_msgs.msg import Float32, Int16, String
 from nav_msgs.msg import Odometry 
 import rospy
