@@ -1,0 +1,76 @@
+#!/usr/bin/python
+
+#This Python 2 program reads the data from an LSM303D and an L3GD20H which are both attached to the I2C bus of a Raspberry Pi.
+#Both can be purchased as a unit from Pololu as their MinIMU-9 v3 Gyro, Accelerometer, and Compass  product.
+#
+#First follow the procedure to enable I2C on R-Pi.
+#1. Add the lines "ic2-bcm2708" and "i2c-dev" to the file /etc/modules
+#2. Comment out the line "blacklist ic2-bcm2708" (with a #) in the file /etc/modprobe.d/raspi-blacklist.conf
+#3. Install I2C utility (including smbus) with the command "apt-get install python-smbus i2c-tools"
+#4. Connect the I2C device to the SDA and SCL pins of the Raspberry Pi and detect it using the command "i2cdetect -y 1".  It should show up as 1D (typically) or 1E (if the jumper is set).
+
+from __future__ import division
+
+import rospy
+from std_msgs.msg import Float64
+import math
+from sailing_robot.imu_utils import ImuReader
+
+IMU_BUS = 1
+LSM = 0x1e #Device I2C slave address
+LGD = 0x6a #Device I2C slave address
+
+def wind_publisher():
+
+    mag_field_pub = rospy.Publisher('wind/mag', Vector3, queue_size=10)
+
+    calib = rospy.get_param('calibration/wind_dir')
+
+    XOFFSET = calib['XOFFSET']
+    YOFFSET = calib['YOFFSET']
+    XSCALE = calib['XSCALE']
+    YSCALE = calib['YSCALE']
+    ANGLEOFFSET = calib['ANGLEOFFSET']
+
+
+    rate = rospy.Rate(sensor_rate)
+
+    def twos_comp_combine(msb, lsb):
+        twos_comp = 256*msb + lsb
+        if twos_comp >= 32768:
+            return twos_comp - 65536
+        else:
+            return twos_comp
+
+    imu = ImuReader(IMU_BUS, LSM, LGD)
+    imu.check_status()
+    imu.configure_for_reading()
+
+    average_list = [0] * AVE_SIZE 
+    i = 0
+
+    while not rospy.is_shutdown():
+        #Read data from the chips ----------------------
+        rate.sleep()
+        # magx = twos_comp_combine(b.read_byte_data(LSM, LSM_MAG_X_MSB), b.read_byte_data(LSM, LSM_MAG_X_LSB))
+        MagX = magx #*0.160
+        
+        _, magy, magz = imu.read_mag_field()
+        MagY = magy #*0.160
+        MagZ = magz #*0.160
+
+        # calibration and axis change (Y->X and Z->Y)
+        MagX = (MagY - XOFFSET) * XSCALE
+        MagY = (MagZ - YOFFSET) * YSCALE
+
+
+	mag_field_pub.publish(Vector3(MagX,MagY,MagZ))
+       
+
+if __name__ == '__main__':
+    try:
+        apparent_wind_direction_pub = rospy.Publisher('wind_direction_apparent', Float64, queue_size=10)
+        rospy.init_node("sensor_driver_wind_direction", anonymous=True)
+        wind_publisher()
+    except rospy.ROSInterruptException:
+        pass

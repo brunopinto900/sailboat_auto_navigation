@@ -1,0 +1,183 @@
+#!/usr/bin/python
+"""Read from the GPS receiver.
+
+Publishes:
+- position (NavSatFix)
+- gps_fix (gpswtime) - includes timestamp from GPS signal
+- gps_satellites (Int16) - number of satellites visible
+"""
+from datetime import datetime
+import os.path
+import serial
+import pynmea2
+import re
+import time
+import traceback
+
+import rospy
+import smbus
+from std_msgs.msg import Int16
+from sensor_msgs.msg import NavSatFix
+from sailing_robot.msg import gpswtime, Velocity
+from sailing_robot.gps_utils import UBXMessage, get_port, UbxNmeaParser
+
+BAUD_RATE = 9600
+READ_TIMEOUT = 0.5
+FILENAME_BASE = "~/sailing-robot/gps-raw-nmea_{}_{}"
+
+i2c_ADDRESS = 0x42
+
+params = rospy.get_param('/')
+
+if params.get('log_raw_gps', True):
+    filename = FILENAME_BASE.format(params.get('log_name', ''),
+                    datetime.now().strftime('%Y-%m-%dT%H.%M.%S'))
+    filename = os.path.expanduser(filename)
+    raw_log = open(filename, 'wb')
+else:
+    raw_log = None
+
+def decimal_degrees(d_m, hemisphere):
+    """Convert the degrees & minutes number from the GPS to decimal degrees
+
+    We get the degrees and minutes unseparated, i.e. (100*degrees)+minutes
+    """
+    m = re.match(r'(\d+)(\d{2}\.\d+)', str(d_m))
+    if not m:
+        raise ValueError(d_m)
+    degrees, minutes = m.group(1, 2)
+    res = int(degrees) + (float(minutes) / 60)
+    if hemisphere in 'SW':
+        return -res
+    return res
+
+def pos_publisher():
+    use_i2c = rospy.get_param("gps_via_i2c")
+    if use_i2c:
+        i2c_bus = smbus.SMBus(1)
+        set_gps_options(i2c_bus, use_i2c)
+    else:
+        serial_port = serial.Serial(get_port(), BAUD_RATE, timeout=READ_TIMEOUT)
+        set_gps_options(serial_port, use_i2c)
+
+    gps_reader = UbxNmeaParser()
+
+    while not rospy.is_shutdown():
+        if use_i2c:
+            data = b''
+            for _ in range(64):
+                char = chr(i2c_bus.read_byte(i2c_ADDRESS))
+                if char != b'\xff':
+                    data += char
+        else:
+            data = serial_port.read(64)
+
+        if raw_log:
+            raw_log.write(data)
+            raw_log.flush()
+
+        gps_reader.feed(data)
+
+        try:
+            batch = list(gps_reader.get_msgs())
+        except (pynmea2.ParseError, pynmea2.ChecksumError, UnicodeError):
+            s = "Error parsing GPS data.\nbuffer={!r}\ndata={!r}\n{}".format(
+                        gps_reader.buf, data, traceback.format_exc()
+            )
+            rospy.logwarn(s)
+            gps_reader.buf = b''
+            continue
+
+        if len(gps_reader.buf) > 512:
+            # I don't really understand this, but sometimes the data is
+            # gibberish which makes no sense. If it seems like this is happening,
+            # shut it down and reopen it. 512 bytes is hopefully larger than any
+            # message we want.
+            rospy.logwarn("512 bytes unprocessed in GPS serial buffer - resetting serial port")
+            if not use_i2c:
+                serial_port.close()
+                serial_port = serial.Serial(get_port(), BAUD_RATE, timeout=READ_TIMEOUT)
+            gps_reader = UbxNmeaParser()
+
+        for sentence in batch:
+            rospy.logdebug("GPS received {!r}".format(sentence))
+            if not isinstance(sentence, pynmea2.NMEASentence):
+                continue
+            if sentence.sentence_type == 'VTG':
+                velocity = Velocity()
+                if sentence.spd_over_grnd_kmph is not None:
+                    if sentence.true_track is not None:
+                        velocity.speed = sentence.spd_over_grnd_kmph / 3.6
+                        velocity.heading = sentence.true_track
+                    else:
+                        velocity.speed = sentence.spd_over_grnd_kmph / 3.6
+                        velocity.heading = -1
+                    velocity_pub.publish(velocity)
+
+            if sentence.sentence_type != 'GGA':
+                continue
+
+            msg = NavSatFix()
+            if sentence.lat == '':
+                continue
+            try:
+                msg.latitude = decimal_degrees(sentence.lat, sentence.lat_dir)
+                msg.longitude = decimal_degrees(sentence.lon, sentence.lon_dir)
+            except ValueError:
+                rospy.logwarn("Error parsing position: {!r}".format(sentence))
+                continue
+            pos_pub.publish(msg)
+
+            nsats_pub.publish(int(sentence.num_sats))
+
+            wtime = gpswtime()
+            wtime.fix = msg
+            wtime.time_h = sentence.timestamp.hour
+            wtime.time_m = sentence.timestamp.minute
+            wtime.time_s = sentence.timestamp.second
+            gps_pub.publish(wtime)
+
+	    
+
+def set_gps_options(communicator, use_i2c):
+    '''Send ublox commands to turn off some data and change GPS rate to 5Hz.
+
+    Thanks to Simon of team Anemoi for info on how to do this.
+    '''
+    if not rospy.get_param('change_gps_rate', False):
+        return
+
+
+    option_list = [b'\xB5\x62\x06\x01\x08\x00\xF0\x02\x00\x00\x00\x00\x00\x01\x02\x32\x10\x13', # GxGSA
+                   b'\xB5\x62\x06\x01\x08\x00\xF0\x03\x00\x00\x00\x00\x00\x01\x03\x39\x10\x13', # GxGSV off
+                   b'\xB5\x62\x06\x01\x08\x00\xF0\x04\x00\x00\x00\x00\x00\x01\x04\x40\x10\x13', # GxRMC off
+                   b'\xB5\x62\x06\x01\x08\x00\xF0\x05\x00\x00\x00\x00\x00\x01\x05\x47\x10\x13', # GxVTG off
+                   b'\xB5\x62\x06\x01\x08\x00\xF0\x01\x00\x00\x00\x00\x00\x01\x01\x2B\x10\x13', # GxGLL off
+                   b'\xB5\x62\x06\x08\x06\x00\xC8\x00\x01\x00\x01\x00\xDE\x6A\x10\x13',         # NMEA rate 5Hz
+                   UBXMessage(b'\x06\x01', payload=b'\xF0\x08\x08').serialise(),                # GxZDA on (time measurement)
+                   UBXMessage(b'\x06\x01', payload=b'\xF0\x05\x01').serialise()]                # GPVTG on speed feedback
+
+    for option in option_list:
+        if use_i2c:
+            first_byte, msg_list = UBXMessage(None, None).i2cise_serial(option)
+            communicator.write_i2c_block_data(i2c_ADDRESS, first_byte, msg_list)
+        else:
+            communicator.write(option)
+
+        time.sleep(0.1)
+
+
+if __name__ == '__main__':
+    try:
+        pos_pub = rospy.Publisher('position', NavSatFix, queue_size=10)
+        velocity_pub = rospy.Publisher('gps_velocity', Velocity, queue_size=10)
+        gps_pub = rospy.Publisher('gps_fix', gpswtime, queue_size=10)
+        nsats_pub = rospy.Publisher('gps_satellites', Int16, queue_size=10)
+        rospy.init_node("sensor_driver_gps", anonymous=True)
+        pos_publisher()
+	
+    except rospy.ROSInterruptException:
+        pass
+
+if raw_log:
+    raw_log.close()

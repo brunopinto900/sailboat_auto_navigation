@@ -1,0 +1,104 @@
+wp/list: [A, Bx, B, B1, C0, C1, D, D1, Dx, E]
+wp/table:
+  A: [41.69020761052517, -8.82247809127125]
+  B: [41.69052346756288, -8.822102303132368]
+  B1: [41.690245466660805, -8.821873504579116]
+  Bx: [41.69037898391984, -8.822274201920209]
+  C0: [41.69066795094366, -8.82193040357501]
+  C1: [41.690389949706834, -8.821701605253253]
+  D: [41.690812434062174, -8.821758503248134]
+  D1: [41.69053443249058, -8.821529705157872]
+  Dx: [41.690956916918424, -8.821586602151712]
+  E: [41.69112828869981, -8.821382708067091]
+  green1: [41.6903, -8.8231199]
+  green2: [41.6914597, -8.82117]
+  wp1: [41.690304, -8.8225033]
+  wp2: [41.6911709, -8.8214719]
+  wp3: [41.6910329, -8.821357]
+  wp4: [41.690165, -8.8223889]
+wp/tasks:
+- {kind: to_waypoint, waypoint: A}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: C0}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: E}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: C0}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: A}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: B}
+- {kind: obstacle_waypoints, normal: C0, obstacle: B1}
+- {kind: obstacle_waypoints, normal: D, obstacle: C1}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: E}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: D}
+- {kind: obstacle_waypoints, normal: C0, obstacle: D1}
+- {kind: obstacle_waypoints, normal: B, obstacle: C1}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: A}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: B}
+- {kind: obstacle_waypoints, normal: C0, obstacle: B1}
+- {kind: obstacle_waypoints, normal: D, obstacle: C1}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: E}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: D}
+- {kind: obstacle_waypoints, normal: C0, obstacle: D1}
+- {kind: obstacle_waypoints, normal: B, obstacle: C1}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: A}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: B}
+- {kind: obstacle_waypoints, normal: C0, obstacle: B1}
+- {kind: obstacle_waypoints, normal: D, obstacle: C1}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: E}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: D}
+- {kind: obstacle_waypoints, normal: C0, obstacle: D1}
+- {kind: obstacle_waypoints, normal: B, obstacle: C1}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: A}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: B}
+- {kind: obstacle_waypoints, normal: C0, obstacle: B1}
+- {kind: obstacle_waypoints, normal: D, obstacle: C1}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: E}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: D}
+- {kind: obstacle_waypoints, normal: C0, obstacle: D1}
+- {kind: obstacle_waypoints, normal: B, obstacle: C1}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: A}
+- {kind: to_waypoint, waypoint: Bx}
+- {kind: to_waypoint, waypoint: B}
+- {kind: obstacle_waypoints, normal: C0, obstacle: B1}
+- {kind: obstacle_waypoints, normal: D, obstacle: C1}
+- {kind: to_waypoint, waypoint: D}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: E}
+- {kind: to_waypoint, waypoint: Dx}
+- {kind: to_waypoint, waypoint: D}
+- {kind: obstacle_waypoints, normal: C0, obstacle: D1}
+- {kind: obstacle_waypoints, normal: B, obstacle: C1}
+- {kind: to_waypoint, waypoint: B}
+- {kind: to_waypoint, waypoint: Bx}
+
+wp/acceptRadius: 8
+wp/tackVotingRadius: 1000

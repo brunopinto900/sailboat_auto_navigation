@@ -1,0 +1,96 @@
+#!/usr/bin/python
+# Simulate the angular_velocity state (currently only heading rate)
+
+import rospy
+from std_msgs.msg import Float32,Int16
+from sailboat.msg import Vector3, Vector2, Wind
+import numpy as np
+import Model.simulation_forces as forces
+import time, math, mpmath
+
+class state_angular_velocity():
+
+    def __init__(self):
+	
+	# Initializes the node
+	rospy.init_node("angular_velocity", anonymous=True)
+	self.sample_time = rospy.get_param("simulation/sample_time") # rate at which this node runs
+        self.node = rospy.Rate(self.sample_time) # wait function to use inside threads
+	self.calculate_forces = forces.Forces_simu() # class to calculate forces due to sails and the rudder
+
+	# Publishers (heading)
+	self.set_angular_velocity = rospy.Publisher('angular_velocity', Vector3, queue_size = 10)
+	self.angular_velocity = Vector3()
+        self.angular_velocity.z = rospy.get_param("scenario/initial_state/heading_rate") # boat's initial heading from a specific scenario
+     
+
+	# Subscribers (angular_velocity)
+	rospy.Subscriber('apparent_wind', Wind, self.get_wind_vector)
+        self.apparent_wind = Wind()
+
+	rospy.Subscriber('linear_velocity',Vector2, self.get_linear_velocity)
+        self.linear_velocity = Vector2()
+
+	rospy.Subscriber('sail_angle',Int16, self.get_sail_angle)
+        self.sail_angle = 0
+
+	rospy.Subscriber('rudder_angle', Int16, self.get_rudder_angle)
+        self.rudder_angle = 0
+
+	# Model Paramateres
+	self.DIST_MAST_T0_SAIL = rospy.get_param('model/dist_mast_to_center_sail')
+	self.DIST_MAST_T0_COG = rospy.get_param('model/dist_mast_to_center_of_gravity')
+	self.DIST_RUDDER_T0_COG = rospy.get_param('model/dist_rudder_to_center_of_gravity')
+	self.ANGULAR_FRICTION = rospy.get_param('model/angular_friction')
+	self.MOMENT_OF_INERTIA = rospy.get_param('model/moment_of_inertia')
+	self.maxW = rospy.get_param('model/maxAngularSpeed')
+	self.k = 0
+
+        rospy.loginfo("angular velocity simulated")
+        self.calculate_angular_velocity() # function responsible to publish, created here after all initializations
+
+    def get_linear_velocity(self, data):
+	self.linear_velocity.x = data.x
+	self.linear_velocity.y = data.y
+
+    def get_sail_angle(self,data):
+	self.sail_angle = data.data
+
+    def get_rudder_angle(self,data):
+	self.rudder_angle = data.data
+
+    def get_wind_vector(self, data):
+	self.apparent_wind = data
+
+    def calculate_angular_velocity(self):
+
+	while not rospy.is_shutdown():
+	
+            fs_vector = self.calculate_forces.get_sail_force(math.radians(self.sail_angle), self.apparent_wind.speed, math.radians        (self.apparent_wind.angle))
+	    fs = mpmath.hypot(fs_vector.x,fs_vector.y)
+	    fr = self.calculate_forces.get_rudder_force(math.radians(self.rudder_angle), self.linear_velocity)
+	    self.k = self.ANGULAR_FRICTION*self.angular_velocity.z #*self.linear_velocity.x, whith this removal its slower in turning
+	    # Yaw rate, baed on paper 4 angular differential equation
+	    yaw_rate = (( self.DIST_MAST_T0_SAIL - self.DIST_MAST_T0_COG*math.cos(math.radians(self.sail_angle) ))*fs - \
+	               self.DIST_RUDDER_T0_COG*fr.x*math.cos(math.radians(self.rudder_angle)) - self.k) / self.MOMENT_OF_INERTIA
+	
+	    #yaw_rate = np.clip(yaw_rate,-0.1,0.1)
+
+	    		
+	    self.angular_velocity.z = self.angular_velocity.z + yaw_rate/self.sample_time
+
+	    self.angular_velocity.y = 0
+	    self.angular_velocity.x = 0
+	    #self.angular_velocity.z = np.clip(self.angular_velocity.z,-self.maxW,self.maxW), with the removal of Vx, there
+		# is no need to limit the angular velocity output
+
+	    self.set_angular_velocity.publish( self.angular_velocity)
+	    
+            self.node.sleep()
+
+
+if __name__ == '__main__':
+    try:
+        state_angular_velocity()
+    except rospy.ROSInterruptException:
+        pass

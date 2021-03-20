@@ -1,0 +1,5 @@
+# Navigation parameters
+
+navigation/utm_zone: 30
+
+navigation/wind_beating_angle : 45

@@ -1,0 +1,5 @@
+controller/kp: 1
+controller/ki: 0.05
+controller/kd: 0
+controller/direction: 1
+controller/cuttof_frequency: 2.5

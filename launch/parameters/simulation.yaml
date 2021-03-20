@@ -1,0 +1,73 @@
+# Boat velocity
+# velocity of the boat at 90° from the wind in with 1 m/s wind speed 
+# for example in a 10kts wind, if the boat goes at 3kts, the coefficient is 0.3
+simulation/velocity/coefficient: 0.4
+
+# Minimum velocity of the boat (in m/s)
+simulation/velocity/minimum: 0.5
+
+# Time after a tack the boat velocity is reduced [s]
+simulation/velocity/tacking_punishment_time: 3 # [s]
+        
+# the velocity will be multiplied by the following coefficient after each tack
+simulation/velocity/tacking_punishment_coefficient: 0.2 # to be removed once a better simulator is made
+
+# simulate a constant water stream
+simulation/velocity/water_stream_speed: 0.5     # [m/s]
+simulation/velocity/water_stream_direction: 180   # [degree]
+
+# sailsheet error normalized (sailsheet_error_norm) in simulator is multiplied by this coef. to simulate influence of not-ideal setting of sailsheet
+simulation/velocity/coef_sailsheet_error: 1
+
+
+
+# Simulation parameters
+
+# ROS rate in [Hz]
+simulation/sample_time: 10
+simulation/plot_time: 5
+
+# Model parameteres
+
+model/mass: 300 #kg
+
+model/sail_lift_coefficient: 200  # kg/s 0.0300
+
+model/rudder_lift_coefficient: 1500 # kg/s 0.0400
+
+model/tangential_friction: 40 # kg/s 0.025
+
+model/angular_friction: 1500 # kg/s
+
+model/dist_mast_to_center_sail: 0.5 #m
+
+model/dist_mast_to_center_of_gravity: 0.5 #m
+
+model/dist_rudder_to_center_of_gravity: 2 #m
+
+model/moment_of_inertia: 400 # kg.m²
+
+model/rudder_break: 0.2
+
+# Noise parameters
+model/noise/linear_velocity_noise_range: 0.0
+model/noise/heading_noise_range: 0.0
+model/noise/wind_angle_noise_range: 0.0 # from the north
+model/noise/wind_speed_noise_range: 0.0
+
+model/noise/position_x_noise_range: 0.0
+model/noise/position_y_noise_range: 0.0
+model/noise/position_covariance: 0.0
+
+# Model limits
+model/maxAngularSpeed: 1.1
+
+model/maxLinearSpeed: 2.5
+# maxSpeed 1.34 sqrt(hull length 4 m in feet) in knots
+# maxSpeed 1.34 sqrt (13) 4.83 knots 2.5 meters per second
+
+# Actuator limits (saturation)
+
+rudder/max_angle: 40
+sail/max_angle: 90
+sail/min_angle: 0

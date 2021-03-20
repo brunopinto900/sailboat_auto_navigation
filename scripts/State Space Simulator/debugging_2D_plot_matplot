@@ -1,0 +1,348 @@
+#!/usr/bin/env python
+
+import os
+from Navigation.Navigator import Navigator
+import rospy, math, time, collections, mpmath
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import matplotlib.image as mpimg
+from sailboat.msg import Vector2, Wind
+from sailboat.msg import gpswtime
+from std_msgs.msg import String, Float32, Float64, Int16
+from sensor_msgs.msg import NavSatFix
+import numpy as np
+from nav_msgs.msg import Odometry
+#from decimal import *
+
+#import smopy
+
+# color palette definition (V2 from  https://matplotlib.org/users/dflt_style_changes.html#colors-color-cycles-and-color-maps)
+C = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+     '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
+     '#bcbd22', '#17becf']
+
+#descomentar a cor se o state nao for normal
+class Debugging_2D_matplot():
+
+    def __init__(self):
+        rospy.init_node("debugging_2D_matplot")
+
+        
+        self.nav = Navigator()
+	
+        self.rate = rospy.Rate(rospy.get_param("simulation/plot_time"))
+	
+        self.wp_radius = rospy.get_param('gps/goal_radius')
+	self.distance = 0
+	#self.wind_north = rospy.get_param("scenario/true_wind/angle")
+        # Get waypoints
+        if rospy.has_param('gps/list'):
+            self.wp_list = rospy.get_param('gps/list')
+        elif rospy.has_param('wp/tasks'):
+            tasks_list = rospy.get_param('wp/tasks')
+            self.wp_list = [t['waypoint'] for t in tasks_list if 'waypoint' in t]
+        else:
+            rospy.logwarn("No waypoint was found!")
+
+        wp_table = rospy.get_param('gps/coordinates')
+        self.wp_list = list(set(self.wp_list)) # print each point only once
+        self.wp_array = np.array([self.nav.latlon_to_utm(wp_table[wp][0], wp_table[wp][1]) for wp in self.wp_list]).T # [lat, lon]
+
+        self.origin = [self.wp_array[0].mean(), self.wp_array[1].mean()]
+	
+	self.initial_heading = rospy.get_param('scenario/initial_state/heading')
+        # Subscribers init
+        rospy.Subscriber('dbg_state', String, self.update_sailing_state)
+        self.sailing_state = 'normal'
+
+	rospy.Subscriber('rudder_angle', Int16, self.update_rudder_angle)
+        self.rudder_angle = 0
+
+	rospy.Subscriber('sail_angle',Int16, self.update_sail_angle)
+        self.sail_angle = 0
+
+        rospy.Subscriber('heading', Float32, self.update_heading)
+        self.heading = 0
+
+        rospy.Subscriber('goal_heading', Float32, self.update_goal_heading)
+        self.goal_heading = 0
+
+        rospy.Subscriber('apparent_wind', Wind, self.update_wind)
+        self.apparent_wind = Wind()
+	#self.wind_north = np.radians(rospy.get_param("scenario/true_wind/angle"))
+
+
+        self.position_history = collections.deque(maxlen = 500)
+        rospy.Subscriber('position', Odometry, self.update_position)
+        self.position = (1,1)
+	
+
+	rospy.Subscriber('linear_velocity',Vector2,self.update_velocity)
+	self.velocity = 0
+
+	rospy.Subscriber('gps_fix',gpswtime,self.update_time)
+	self.init_time_sec = 0
+	self.init_time_min = 0
+	self.time_sec = 0
+	self.time_min = 0
+	self.init = 1
+
+        self.window = [0,0,0,0]
+        self.init_plot()
+        self.update_plot()
+
+
+    def update_rudder_angle(self, msg):
+	self.rudder_angle = msg
+
+
+    def update_sail_angle(self, msg):
+	self.sail_angle = msg
+
+
+    def update_time(self,msg):
+	if(self.init == 1):
+	    self.init_time_sec = msg.time_s
+	    self.init_time_min = msg.time_m
+	    self.init = 0
+
+	self.time_sec = msg.time_s
+	self.time_min = msg.time_m
+
+    def getSeconds(self):
+	initialSeconds = self.init_time_min*60 + self.init_time_sec # number of seconds in the beggining
+	seconds = self.time_min*60 + self.time_sec - initialSeconds
+	return seconds
+
+    def update_velocity(self,msg):
+
+	self.velocity = mpmath.hypot(msg.x,msg.y)
+
+    def update_sailing_state(self, msg):
+        self.sailing_state = msg.data
+
+    def update_position(self, msg):
+	latitude = msg.pose.pose.position.y
+	longitude = msg.pose.pose.position.x
+        self.position = list(self.nav.latlon_to_utm(latitude,longitude))
+        self.position[0] -= self.origin[0]
+        self.position[1] -= self.origin[1]
+        self.position_history.append(self.position)
+
+    def update_heading(self, msg):
+        self.heading = msg.data
+        #self.wind_north = np.radians(self.heading + self.apparent_wind.angle)
+
+    def update_goal_heading(self, msg):
+        self.goal_heading = msg.data
+
+    def update_wind(self, msg):
+        self.wind_north = np.radians(self.heading + msg.angle)
+	return msg
+
+   
+    def init_plot(self):
+
+        # recenter wp to the origin
+        for i, _ in enumerate(self.wp_array[0]):
+            self.wp_array[0][i] -= self.origin[0]
+            self.wp_array[1][i] -= self.origin[1]
+
+        self.maxwpdist = [0,0]
+        self.maxwpdist[0] = np.max(np.abs(self.wp_array[0]))
+        self.maxwpdist[1] = np.max(np.abs(self.wp_array[1]))
+
+        self.fig = plt.figure()
+        self.boatline, = plt.plot([], [], c=C[0], label="Heading")
+        plt.plot([], [], c=C[7], label="Goal heading")
+        plt.plot([], [], c=C[1], label="Wind direction")
+	plt.plot([],[],c=C[3], label = "Initial Heading")
+	plt.xlabel("x position (in meters)")
+	plt.ylabel("y position (in meters)")
+
+
+        # display Waypoints
+        self.wpfig = plt.scatter(self.wp_array[0], self.wp_array[1], c=C[3])
+
+	size = len(self.wp_list)
+	n = []
+	index = 1
+	while(index <= size):
+	    n.append(index)
+	    index+=1
+	
+	#n = [1,3,2,5,4,7,6]
+	#n = [1,2]
+        plt.tight_layout()
+        self.ax = plt.subplot(111)
+	i = 0
+	for j in n:
+    	    self.ax.annotate(str(j), xy = (self.wp_array[0,i], self.wp_array[1,i]) )
+	    i+=1
+    
+        #self.get_bg_image()
+
+
+    def get_arrow(self, angle, color, reverse=False):
+
+        figsize = self.fig.get_size_inches()
+        scale_dx = figsize[0]/np.sqrt(figsize[0]**2 + figsize[1]**2) 
+        scale_dy = figsize[1]/np.sqrt(figsize[0]**2 + figsize[1]**2)
+
+        if reverse:
+            style = '<-'
+        else:
+            style = '->'
+
+        arrow_ori = (0.88, 0.12)
+        arrow_target = (arrow_ori[0] + 0.05*np.sin(angle)/scale_dx, arrow_ori[1] + 0.05*np.cos(angle)/scale_dy)
+        arrow = self.ax.annotate("",
+                                 xy=arrow_target, xycoords=self.ax.transAxes,
+                                 xytext=arrow_ori, textcoords=self.ax.transAxes,
+                                 arrowprops=dict(arrowstyle=style,
+                                                 color=color,
+                                                 connectionstyle="arc3"),
+                                 )
+
+        return arrow
+
+
+    def animate(self, i):
+
+        if self.position_history:
+            lat, lon = np.array(self.position_history).T
+            self.boatline.set_data(lat,lon)
+        
+	wind_arrow = self.get_arrow(self.wind_north, C[1])
+
+        heading_arrow = self.get_arrow(np.radians(self.heading), C[0])
+
+        goal_heading_arrow = self.get_arrow(np.radians(self.goal_heading), C[7])
+
+	initial_heading_arrow = self.get_arrow(np.radians(self.initial_heading),C[3])
+
+        arrow_col = C[0]
+        #if self.sailing_state != 'normal':
+         #   arrow_col = C[1]
+	
+	arrow_dx = 0.1*np.sin(np.radians(self.heading))
+        arrow_dy = 0.1*np.cos(np.radians(self.heading))
+        boat_arrow = plt.arrow(self.position[0] - arrow_dx, self.position[1] - arrow_dy,
+                                    arrow_dx, arrow_dy,
+                                    head_width=0.3, 
+                                    head_length=0.6,  
+                                    fc=arrow_col, 
+                                    ec=arrow_col)
+
+	if( (self.getSeconds() % 1) == 0):
+      	    self.distance += self.velocity*1.0;
+
+        self.update_window(i)
+	#wind_arrow.remove()
+	#heading_arrow.remove()
+	#goal_heading_arrow.remove()
+	#initial_heading_arrow.remove()
+	#10,8
+	
+        
+        return self.boatline, wind_arrow, boat_arrow, self.wpfig, goal_heading_arrow, heading_arrow, initial_heading_arrow, plt.legend(), plt.text(20, 10, str(self.getSeconds() ) + " seconds" ), plt.text(20, 5,str(self.velocity) + " m/s" ), plt.text(20,0,"distance travelled: " + str(self.distance) + " m" ), plt.text(20,-5, "Rudder angle: " + str(self.rudder_angle) + " degrees" ), plt.text(20,-10, "Sail Value: " + str(self.sail_angle) + " [0, 90]"), plt.text(20,-15, "Sailing Sate: " + self.sailing_state )
+
+    def animateArrows(self, i):
+
+        wind_arrow = self.get_arrow(self.wind_north, C[1])
+
+        heading_arrow = self.get_arrow(np.radians(self.heading), C[0])
+
+        goal_heading_arrow = self.get_arrow(np.radians(self.goal_heading), C[7])
+
+        arrow_col = C[0]
+        if self.sailing_state != 'normal':
+            arrow_col = C[1]
+       
+        self.update_window(i)
+        if self.has_bg_img:
+            return self.image_show, wind_arrow, self.wpfig, goal_heading_arrow, heading_arrow, plt.legend()
+        else:
+            return wind_arrow, self.wpfig, goal_heading_arrow, heading_arrow, plt.legend()
+
+    def animateBoat(self, i):
+        if self.position_history:
+            lat, lon = np.array(self.position_history).T
+            self.boatline.set_data(lat,lon)
+
+        arrow_col = C[0]
+        if self.sailing_state != 'normal':
+            arrow_col = C[1]
+        arrow_dx = 0.1*np.sin(np.radians(self.heading))
+        arrow_dy = 0.1*np.cos(np.radians(self.heading))
+        boat_arrow = plt.arrow(self.position[0] - arrow_dx, self.position[1] - arrow_dy,
+                                    arrow_dx, arrow_dy,
+                                    head_width=0.8, 
+                                    head_length=0.0,  
+                                    fc=arrow_col, 
+                                    ec=arrow_col)
+
+        self.update_window(i)
+        if self.has_bg_img:
+            return self.image_show, self.boatline, boat_arrow, self.wpfig, plt.legend()
+        else:
+            return self.boatline, boat_arrow, self.wpfig,plt.legend()
+
+
+    def update_window(self, i):
+        # update window only every second
+        if not i%10 == 0:
+            return 
+
+        # rounding of the window size in m 
+        rounding = 10.0
+
+        # maximum distance to origin in both direction
+        distx = max(self.maxwpdist[0], abs(self.position[0])) + rounding/2
+        disty = max(self.maxwpdist[1], abs(self.position[1])) + rounding/2
+
+        distx = int(round(distx/rounding)*rounding) + 1
+        disty = int(round(disty/rounding)*rounding) + 1
+
+        # scaling to keep x and y orthonormal
+        figsize = self.fig.get_size_inches()
+        scale_dx = figsize[0]/np.sqrt(figsize[0]**2 + figsize[1]**2)
+        scale_dy = figsize[1]/np.sqrt(figsize[0]**2 + figsize[1]**2)
+        norm = min(scale_dx, scale_dy)
+        scale_dx = scale_dx/norm
+        scale_dy = scale_dy/norm
+        
+        # decide which axis is the limiting one
+        if distx*scale_dy > disty*scale_dx:
+            dist = distx
+        else:
+            dist = disty
+
+        minx = - dist * scale_dx
+        maxx = + dist * scale_dx
+        miny = - dist * scale_dy
+        maxy = + dist * scale_dy 
+        
+        if self.window == [minx, maxx, miny, maxy]:
+            return 
+
+        self.window = [minx, maxx, miny, maxy]
+	#self.window = [-20, 20, -20, 20]
+        self.ax.axis(self.window)
+
+	return
+
+
+
+    def update_plot(self):
+        line_ani = animation.FuncAnimation(self.fig, self.animate,
+                                           interval=100, blit=True)
+	#boat_ani = animation.FuncAnimation(self.fig, self.animateBoat,
+                                           #interval=300, blit=False)
+        plt.show()
+
+if __name__ == '__main__':
+    try :
+        Debugging_2D_matplot()
+    except rospy.ROSInterruptException:
+        pass

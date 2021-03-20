@@ -1,0 +1,91 @@
+#!/usr/bin/python
+# Simulate the heading state
+
+import rospy
+from std_msgs.msg import Float32, Int16
+from sailboat.msg import Vector3, Vector2
+import math, mpmath
+
+class state_heading():
+
+    def __init__(self):
+
+	# Initializes the node
+	rospy.init_node("heading", anonymous=True)
+	self.sample_time = rospy.get_param("simulation/sample_time") # rate at which this node runs
+        self.node = rospy.Rate(self.sample_time) # wait function to use inside threads
+
+	# Publishers (heading)
+	self.set_heading = rospy.Publisher('heading', Float32, queue_size = 10)
+	self.heading = rospy.get_param("scenario/initial_state/heading") # boat's initial heading from a specific scenario
+
+	# Subscribers (angular_velocity)
+	rospy.Subscriber('angular_velocity', Vector3, self.get_angular_velocity)
+	self.heading_rate = rospy.get_param("scenario/initial_state/heading_rate")
+
+	rospy.Subscriber('rudder_angle', Int16, self.get_rudder)
+	self.rudder = 0
+
+	rospy.Subscriber('linear_velocity', Vector2, self.update_velocity)
+	self.speed = 0
+
+	#Noise
+        self.heading_noise_range = rospy.get_param('model/noise/heading_noise_range')
+
+	rospy.loginfo("Heading simulated") #for debugging purposes
+        self.calculate_heading() # function responsible to publish, created here after all initializations
+	
+    def get_rudder(self, data):
+	self.rudder = data.data
+
+    def update_velocity(self, msg):
+        self.speed = mpmath.hypot(msg.x,msg.y)
+
+	# gets current boat's angular_velocity
+    def get_angular_velocity(self,data):
+	self.heading_rate = data.z # angular_velocity.z == heading_rate
+
+	# sets the boat's new heading
+    def calculate_heading(self):
+
+	# every sample_time seconds, it executes this loop
+	while not rospy.is_shutdown():
+
+	   
+	
+	# addition of gaussian white noise
+ 	    if self.heading_noise_range:
+                noise_heading = np.random.normal(scale= self.heading_noise_range)
+            else:
+                noise_heading = 0
+
+            self.heading_prev = math.degrees(self.heading_rate/self.sample_time)
+         
+            self.heading = self.heading + noise_heading + self.heading_prev
+	   
+	 # % 360 to bound the angle between 0 and 359, - sign because the north is defined as zero degrees, there is a -90 degrees shift
+
+	    if (self.heading < 0):
+		
+		self.heading = self.heading + 360	
+
+	    self.set_heading.publish(self.heading % 360)
+	 
+            self.node.sleep()
+
+
+if __name__ == '__main__':
+    try:
+        state_heading()
+    except rospy.ROSInterruptException:
+        pass
+
+
+
+
+
+
+
+
+
+

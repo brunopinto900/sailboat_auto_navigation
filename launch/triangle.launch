@@ -1,0 +1,39 @@
+<launch>
+    <!--
+    General test file to launch simulator
+    -->
+
+    <!--
+    Parameters
+    -->
+
+    <!-- General simulation parameters file -->
+    <rosparam file="$(find sailboat)/launch/parameters/simulation.yaml" command="load"/>
+
+    <!-- Navigation parameters file -->
+    <rosparam file="$(find sailboat)/launch/parameters/navigation.yaml" command="load"/>
+
+    <!-- Scenario specific paramaters file with different wind conditions, initial state conditions and waypoints -->
+    <rosparam file="$(find sailboat)/launch/parameters/scenarios/triangle.yaml" command="load"/>
+    <rosparam file="$(find sailboat)/launch/parameters/scenarios/triangle_wp.yaml" command="load"/>
+    <rosparam file="$(find sailboat)/launch/parameters/sailsettings.yaml" command="load"/>
+    <rosparam file="$(find sailboat)/launch/parameters/pid_controller.yaml" command="load"/>
+
+
+    
+
+    <param name="log_name" value="simulator_test" />
+
+    <!-- Nodes inclusion -->
+    
+    <node name = "heading" pkg="sailboat" type="heading" />
+    <node name = "angular_velocity" pkg="sailboat" type="angular_velocity" />
+    <node name = "linear_velocity" pkg="sailboat" type="linear_velocity" />
+    <node name = "position" pkg="sailboat" type="position"/>
+    <node name = "apparent_wind" pkg="sailboat" type="apparent_wind" />
+    <node name = "debugging_2D_plot_matplot" pkg="sailboat" type="debugging_2D_plot_matplot" />
+    <node name = "tasks_runner" pkg="sailboat" type="tasks_runner" />
+    <node name = "tasks_planner" pkg="sailboat" type="tasks_planner" />
+    <node name = "gps_fix" pkg="sailboat" type="gps_fix" />
+    
+ </launch>

@@ -1,0 +1,48 @@
+<launch>
+    <!--
+    General test file to launch simulator
+    -->
+
+    <!--
+    Parameters
+    -->
+
+
+    <rosparam file="$(find sailing_robot)/launch/parameters/tack.yaml" command="load"/>
+
+    <rosparam file="$(find sailing_robot)/launch/parameters/sensors_calibration.yaml" ns="/calibration" command="load"/>
+    <rosparam file="$(find sailing_robot)/launch/parameters/sailsettings.yaml" command="load"/>
+    <rosparam file="$(find sailing_robot)/launch/parameters/servos.yaml" command="load"/>
+
+    <rosparam file="$(find sailing_robot)/launch/parameters/tack_wp.yaml" command="load"/>
+
+    <rosparam file="$(find sailing_robot)/launch/parameters/simulator.yaml" command="load"/>
+
+    <param name="log_name" value="simulator_test" />
+
+    <!--
+    Nodes
+    -->
+    <node name = "tasks" pkg="sailing_robot" type = "tasks" />
+    <!-- uncomment if helming is not used
+    <node name = "tack" pkg="sailing_robot" type = "tack" />
+    <node name = "actuator_demand_rudder" pkg="sailing_robot" type = "actuator_demand_rudder" />
+    <node name = "actuator_demand_sail" pkg="sailing_robot" type = "actuator_demand_sail" />
+    -->
+    <node name = "helming" pkg="sailing_robot" type="helming" />
+    <node name = "debugging_2D_plot_matplot" pkg="sailing_robot" type="debugging_2D_plot_matplot" />
+    <node name = "simulation_position" pkg='sailing_robot' type="simulation_position"/>
+    <node name = "simulation_velocity" pkg='sailing_robot' type="simulation_velocity"/>
+    <node name = "simulation_angular_velocity" pkg='sailing_robot' type="simulation_angular_velocity"/>
+    <node name = "simulation_wind_apparent" pkg="sailing_robot" type="simulation_wind_apparent" />
+    <node name = "simulation_heading" pkg="sailing_robot" type="simulation_heading" />
+
+    <!--node name = "sensor_camera_detect" pkg="sailing_robot" type="sensor_camera_detect" /-->
+
+    <node name = "sensor_processed_wind_direction" pkg="sailing_robot" type="sensor_processed_wind_direction" />
+
+    <node name = "simulation_gps_fix" pkg="sailing_robot" type="simulation_gps_fix" />
+    <!--node name="debugging_gps_log" pkg='sailing_robot' type="debugging_gps_log"/-->
+
+    
+ </launch>

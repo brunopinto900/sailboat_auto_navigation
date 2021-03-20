@@ -1,0 +1,133 @@
+#!/usr/bin/python
+# Simulate the heading state
+
+import rospy
+from std_msgs.msg import Float32
+from sailboat.msg import Vector2
+from nav_msgs.msg import Odometry
+from LatLon import LatLon
+import numpy as np
+import math, mpmath
+from Navigation.Navigator import Navigator
+
+
+class state_position():
+
+    def __init__(self):
+
+	# Initializes the node
+	rospy.init_node("heading", anonymous=True)
+	self.sample_time = rospy.get_param("simulation/sample_time") # rate at which this node runs
+        self.node = rospy.Rate(self.sample_time) # wait function to use inside threads
+
+	# Publishers
+	self.set_position = rospy.Publisher('position',Odometry, queue_size = 10)
+	self.position = Odometry()
+	
+	# Subscribers (angular_velocity)
+	rospy.Subscriber('heading', Float32, self.get_heading)
+        self.heading = rospy.get_param("scenario/initial_state/heading")
+
+	rospy.Subscriber('linear_velocity', Vector2, self.get_linear_velocity)
+        self.linear_velocity = Vector2()
+
+	#Noise
+        self.xpos_noise_range = rospy.get_param('model/noise/position_x_noise_range')
+	self.ypos_noise_range = rospy.get_param('model/noise/position_y_noise_range')
+	
+	self.pos_covar = rospy.get_param("model/noise/position_covariance")
+
+	self.position.header.frame_id = "gps_measurements"      # the tracked robot frame
+	self.position.pose.pose.orientation.x = 1               # identity quaternion
+ 	self.position.pose.pose.orientation.y = 0               # identity quaternion
+ 	self.position.pose.pose.orientation.z = 0               # identity quaternion
+ 	self.position.pose.pose.orientation.w = 0               # identity quaternion
+ 	self.position.pose.covariance = [self.pos_covar, 0, 0, 0, 0, 0,  # covariance on gps_x
+                        0, self.pos_covar, 0, 0, 0, 0,  # covariance on gps_y
+                        0, 0, self.pos_covar, 0, 0, 0,  # covariance on gps_z
+                        0, 0, 0, 99999, 0, 0,  # large covariance on rot x
+                        0, 0, 0, 0, 99999, 0,  # large covariance on rot y
+                        0, 0, 0, 0, 0, 99999]  # large covariance on rot z
+
+	# Water stream
+        self.water_stream_angle = rospy.get_param('scenario/water_stream/angle')
+        self.water_stream_speed = rospy.get_param('scenario/water_stream/speed')
+
+	# Read init position form the /wp parameters, fazer isto de outro maneira
+        try:
+            wp_list = rospy.get_param('gps/list')
+            wp0 = wp_list[0]
+        except KeyError:
+            task_list = rospy.get_param('wp/tasks')
+            wp0 = task_list[0]['waypoint']
+        wp_table = rospy.get_param('gps/coordinates')
+        init_position = wp_table[wp0]
+
+   
+        self.nav = Navigator()
+        self.utm_position = self.nav.latlon_to_utm(init_position[0], init_position[1])
+
+	rospy.loginfo('Position simulated')
+	self.calculate_position()
+
+
+    def get_heading(self, data):
+        self.heading = data.data
+
+    def get_linear_velocity(self, data):
+        # velocity in the boat reference system
+        self.linear_velocity.x = data.x
+	self.linear_velocity.y = data.y
+	speed = mpmath.hypot(self.linear_velocity.x,self.linear_velocity.y)
+	heading = math.degrees(math.atan2(self.linear_velocity.y, self.linear_velocity.x) )
+	self.linear_velocity.x = speed * math.cos(math.radians(heading - self.heading))
+        self.linear_velocity.y = speed * math.sin(math.radians(heading - self.heading))
+
+
+    def calculate_position(self):
+
+	# every sample_time seconds, it executes this loop
+	while not rospy.is_shutdown():
+
+	    if self.xpos_noise_range:
+                noise_x = np.random.normal(scale= self.xpos_noise_range)
+            else:
+                noise_x = 0
+
+	    if self.ypos_noise_range:
+                noise_y = np.random.normal(scale= self.ypos_noise_range)
+            else:
+                noise_y = 0
+
+	
+            water_stream_x = -self.water_stream_speed * math.cos(math.radians(self.water_stream_angle))
+            water_stream_y = -self.water_stream_speed * math.sin(math.radians(self.water_stream_angle))
+
+	    dx = (self.linear_velocity.x * math.sin(math.radians(self.heading)) - \
+                self.linear_velocity.y * math.cos(math.radians(self.heading)) + water_stream_x) / self.sample_time # alterar depois
+
+            dy = (self.linear_velocity.x * math.cos(math.radians(self.heading)) + \
+                self.linear_velocity.y * math.sin(math.radians(self.heading)) + water_stream_y) / self.sample_time
+
+      
+            self.utm_position = (self.utm_position[0] + dx + noise_x, self.utm_position[1] + dy + noise_y)
+
+            gps_coord = self.nav.utm_to_latlon(self.utm_position[0], self.utm_position[1])
+           
+	    self.position.header.stamp = rospy.Time.now()                           # time of gps measurement
+            self.position.pose.pose.position.x = gps_coord.lon.decimal_degree       # longitude measurement GPS in decimal degrees
+ 	    self.position.pose.pose.position.y = gps_coord.lat.decimal_degree       # lattitude measurement GPS in decimal degrees
+ 	    self.position.pose.pose.position.z = 0                                  # alttitude measurement GPS in decimal degrees
+ 	    
+
+            self.set_position.publish(self.position)
+
+            self.node.sleep()
+
+
+if __name__ == '__main__':
+    try:
+        state_position()
+    except rospy.ROSInterruptException:
+        pass
+

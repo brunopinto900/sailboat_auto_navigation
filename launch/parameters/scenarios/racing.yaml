@@ -1,0 +1,16 @@
+simulation/heading_init: 180.0
+
+# Wind conditions:
+# wind speed in m/s (1m/s = 1.9kts)
+simulation/wind/speed: 5
+
+# wind direction relative to north
+simulation/wind/direction: 180
+
+# Helming Procedure
+#
+# True to turn by jibing preferably instead of tacking:
+procedure/jibe_to_turn: false
+
+scenario/water_stream/angle: 0
+scenario/water_stream/speed: 0

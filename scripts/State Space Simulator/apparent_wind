@@ -1,0 +1,114 @@
+#!/usr/bin/python
+# Simulate the heading state
+
+import rospy
+from std_msgs.msg import Float32
+from sailboat.msg import Vector3, Wind, Vector2
+import math, time, mpmath
+import numpy as np
+from sailboat.cfg import windConfig
+from dynamic_reconfigure.server import Server
+
+#Nao esquecer  dynamic config
+class apparent_wind_simulation():
+
+    def __init__(self):
+
+	# Initializes the node
+	rospy.init_node("apparent_wind_simulation", anonymous=True)
+
+	def wind_callback(config, level):
+     
+            self.wind_speed = config.TWS
+            self.wind_direction_north = config.TWA
+       
+            return config
+	srv = Server(windConfig, wind_callback)
+
+	self.sample_time = rospy.get_param("simulation/sample_time") # rate at which this node runs
+        self.node = rospy.Rate(self.sample_time) # wait function to use inside threads
+
+	# Publishers (heading)
+	self.set_apparent_wind = rospy.Publisher('apparent_wind', Wind, queue_size = 10)
+	self.apparent_wind = Wind()
+
+	# Subscribers (angular_velocity)
+	rospy.Subscriber('heading', Float32, self.get_heading)
+        self.heading = rospy.get_param("scenario/initial_state/heading")
+
+	rospy.Subscriber('linear_velocity', Vector2, self.get_linear_velocity)
+        self.linear_velocity = Vector2()
+
+	# True Wind speed and direction
+        self.true_wind_speed = rospy.get_param("scenario/true_wind/speed")
+	self.true_wind_angle = rospy.get_param("scenario/true_wind/angle") # from the north
+
+
+        #Noise
+        self.wind_angle_noise_range = rospy.get_param('model/noise/wind_angle_noise_range')
+        self.wind_speed_noise_range = rospy.get_param('model/noise/wind_speed_noise_range')
+
+        rospy.loginfo("Wind direction simulated")
+        self.calculate_apparent_wind() # function responsible to publish, created here after all initializations
+
+    def get_heading(self, data):
+        self.heading = data.data
+
+    def get_linear_velocity(self, data):
+        # velocity in the boat reference system
+        self.linear_velocity.x = data.x
+	self.linear_velocity.y = data.y
+	speed = mpmath.hypot(self.linear_velocity.x,self.linear_velocity.y)
+	heading = math.degrees(math.atan2(self.linear_velocity.y, self.linear_velocity.x) )
+	self.linear_velocity.x = speed * math.cos(math.radians(heading - self.heading))
+        self.linear_velocity.y = speed * math.sin(math.radians(heading - self.heading))
+
+    def calculate_apparent_wind(self):
+
+	# every sample_time seconds, it executes this loop
+	while not rospy.is_shutdown():
+
+            if self.wind_angle_noise_range:
+                noise_angle = np.random.normal(scale= self.wind_angle_noise_range)
+            else:
+                noise_angle = 0
+
+            if self.wind_speed_noise_range:
+                noise_speed = np.random.normal(scale= self.wind_speed_noise_range)
+            else:
+                noise_speed = 0
+
+
+            angle = (self.true_wind_angle + noise_angle - self.heading) % 360
+            true_wind_vector = ((self.true_wind_speed + noise_speed)* math.cos(math.radians(angle)),
+                                (self.true_wind_speed + noise_speed)* math.sin(math.radians(angle)),) #alterar sinal menos
+
+            apparent_wind_vector = (-self.linear_velocity.x + true_wind_vector[0], #alterar sinal menos nas velocidades
+                             -self.linear_velocity.y + true_wind_vector[1],) 
+
+
+            self.apparent_wind.speed = mpmath.hypot(apparent_wind_vector[0],apparent_wind_vector[1])
+            self.apparent_wind.angle = ( math.degrees(math.atan2(apparent_wind_vector[1], apparent_wind_vector[0]))) % 360
+
+
+            self.set_apparent_wind.publish(self.apparent_wind)
+           
+	  
+            self.node.sleep()
+
+
+if __name__ == '__main__':
+    try:
+        apparent_wind_simulation()
+    except rospy.ROSInterruptException:
+        pass
+
+
+
+
+
+
+
+
+
+

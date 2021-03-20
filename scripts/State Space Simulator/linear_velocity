@@ -1,0 +1,144 @@
+#!/usr/bin/python
+# Simulate the heading state
+
+import rospy
+import Model.simulation_forces as forces
+import time, math,mpmath
+from sailboat.msg import Vector2, Vector3, Wind
+from Model.sail_table import SailTable
+from std_msgs.msg import Float32,Int16,String
+import numpy as np
+import scipy.interpolate
+from Navigation.Navigator import Navigator as Navigator_class
+
+
+class state_linear_velocity():
+
+    def __init__(self):
+	
+	rospy.init_node('linear_velocity', anonymous=True)
+	self.calculate_forces = forces.Forces_simu()
+	self.Navigator = Navigator_class()
+	self.sample_time = rospy.get_param("simulation/sample_time") # rate at which this node runs
+        self.node = rospy.Rate(self.sample_time) # wait function to use inside threads
+
+	# Publishers
+	self.set_linear_velocity = rospy.Publisher('linear_velocity',Vector2,queue_size = 10)
+	self.linear_velocity = Vector2()
+	self.linear_velocity.x = 0 #rospy.get_param('scenario/initial_state/linear_velocity_x')
+	self.linear_velocity.y = 0 #rospy.get_param('scenario/initial_state/linear_velocity_y')
+	self.maxSpeed = rospy.get_param("model/maxLinearSpeed")
+
+	self.sail_table_dict = rospy.get_param('sailsettings/table')
+        self.sail_table = SailTable(self.sail_table_dict)
+
+        self.punishment = 1
+        self.tacking_punishment_time = rospy.get_param("simulation/velocity/tacking_punishment_time")
+        self.tacking_punishment_coef = rospy.get_param("simulation/velocity/tacking_punishment_coefficient")
+
+        self.velocity_coefficient = rospy.get_param("simulation/velocity/coefficient")
+        self.velocity_minimum = rospy.get_param("simulation/velocity/minimum")
+
+        self.coef_sailsheet_error = rospy.get_param("simulation/velocity/coef_sailsheet_error")
+
+	# Model parameters
+	self.MASS = rospy.get_param("model/mass")
+	self.FRICTION = rospy.get_param("model/tangential_friction")
+	self.RUDDER_BREAK = rospy.get_param("model/rudder_break")
+
+	# Noise
+	self.noise_velocity_range = rospy.get_param("model/noise/linear_velocity_noise_range")
+
+	#Subscribers
+
+        rospy.Subscriber('apparent_wind', Wind, self.get_wind_vector)
+        self.apparent_wind = Wind()
+	self.true_wind_angle = 0
+	rospy.Subscriber('angular_velocity', Vector3, self.get_angular_velocity)
+        self.heading_rate = rospy.get_param("scenario/initial_state/heading_rate")
+
+	rospy.Subscriber('heading', Float32, self.get_heading)
+        self.heading = rospy.get_param("scenario/initial_state/heading")
+
+	rospy.Subscriber('sail_angle', Int16, self.get_sail_angle)
+        self.sail_angle = 0
+
+	rospy.Subscriber('rudder_angle', Int16, self.get_rudder_angle)
+        self.rudder_angle = 0
+
+	rospy.Subscriber('sailing_state', String, self.update_sailing_state)
+        self.sailing_state = 'normal'
+
+
+	rospy.loginfo("linear velocity simulated")
+	self.polardef()
+	self.calculate_linear_velocity() # function responsible to publish, created here after all initializations
+
+    def get_sail_angle(self,data):
+	self.sail_angle = data.data
+
+    def get_rudder_angle(self,data):
+	self.rudder_angle = data.data
+
+    def get_angular_velocity(self,data):
+	self.heading_rate = data.z
+    
+    def get_heading(self, data):
+        self.heading = data.data
+
+
+
+    def get_wind_vector(self, data):
+        self.apparent_wind.speed = data.speed
+	self.apparent_wind.angle = data.angle
+	self.true_wind_angle = self.Navigator.convert_apparent_to_true(self.heading,self.apparent_wind.angle)
+
+    
+    
+    def calculate_linear_velocity(self):
+
+	while not rospy.is_shutdown():
+
+	 
+
+	    if self.noise_velocity_range:
+                noise_velocity = np.random.normal(scale= self.noise_velocity_range)
+            else:
+                noise_velocity = 0
+
+	  
+
+           
+	    fs = self.calculate_forces.get_sail_force(math.radians(self.sail_angle),self.apparent_wind.speed, math.radians(self.apparent_wind.angle) )
+	    fr = self.calculate_forces.get_rudder_force(math.radians(self.rudder_angle),self.linear_velocity)
+
+	    tangential_friction_force_x = -self.FRICTION*(self.linear_velocity.x**2) #Vx
+	    tangential_friction_force_y = -0.03*(self.linear_velocity.y**2) #Vy, talk about damping, wind, compare paper4, uvivva, position keeping
+
+	    delta_vel_x = (fs.x - fr.x*self.RUDDER_BREAK + self.linear_velocity.y*self.heading_rate*self.MASS*0 + tangential_friction_force_x)/self.MASS    #talvez adicionar mais massas
+
+	   # delta_vel_x = (fs.x - fr.x*math.sin(math.radians(self.rudder_angle))*self.RUDDER_BREAK + tangential_friction_force_x)/self.MASS    #talvez adicionar mais massas
+
+	    delta_vel_y = (-fr.y*self.RUDDER_BREAK - self.linear_velocity.x*self.heading_rate*self.MASS*0 + tangential_friction_force_y )/self.MASS #talvez adicionar mais massas	  
+  	    
+	    delta_vel_x = np.clip(delta_vel_x, -0.5, 0.5)
+	    delta_vel_y = np.clip(delta_vel_y, -0.1, 0.1)
+
+	    self.linear_velocity.x = self.linear_velocity.x + delta_vel_x/self.sample_time
+	    self.linear_velocity.y = self.linear_velocity.y + delta_vel_y/self.sample_time
+
+	    self.linear_velocity.x = np.clip(self.linear_velocity.x,-self.maxSpeed,self.maxSpeed)
+	    self.linear_velocity.y = np.clip(self.linear_velocity.y,-self.maxSpeed,self.maxSpeed)
+
+	   
+	    self.set_linear_velocity.publish(self.linear_velocity)
+            
+	    self.node.sleep()
+
+
+if __name__ == '__main__':
+    try:
+        state_linear_velocity()
+    except rospy.ROSInterruptException:
+        pass
+
