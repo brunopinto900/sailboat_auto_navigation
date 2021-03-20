@@ -8,6 +8,14 @@ ting System.
 
 To get a better understanding of this work, please read the PDF report.
 
+# How to install
+git clone 
+
+
+# Usage
+
+
+
 # Acknowledgments
 
 https://github.com/Maritime-Robotics-Student-Society/sailing-robot/tree/master/src/sailing_robot/scripts
