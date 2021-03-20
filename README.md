@@ -36,8 +36,6 @@ This will launch a 2D plot of a boat moving through a collection of waypoints.
 
 # Acknowledgments
 
-https://github.com/Maritime-Robotics-Student-Society/sailing-robot/tree/master/src/sailing_robot/scripts
-
 My work is based on work in the following repository
 https://github.com/Maritime-Robotics-Student-Society/sailing-robot/tree/master/src/sailing_robot/scripts
 
