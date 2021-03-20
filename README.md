@@ -51,7 +51,7 @@ Simulator described by equations involving, once again, aerodynamic and hydrodyn
 Implementation of two state machines (a high level and a low level) that switches via dynamic "switches" based on the boat's position relative to the wind (points of sailing).
 
 The simulator of the English institution uses adaptive algorithms that so much mimic the behavior of a sailor, that is, in real time, the algorithm chooses the best maneuvers
-based on the adjustment of gains (dynamically) (read the PDF article available in the project dossier, for better understanding).
+based on the adjustment of gains, dynamically.
 
 In conclusion:
 
