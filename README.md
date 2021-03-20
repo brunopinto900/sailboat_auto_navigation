@@ -25,13 +25,13 @@ roslaunch sailboat upwind_TACK.launch
 
 This will launch a 2D plot of a boat moving towards the goal in the direction of the wind.
 
-![Tacking upwind](https://github.com/brunopinto900/sailboat_auto_navigation/blob/main/complete.png)
+![Tacking upwind](https://github.com/brunopinto900/sailboat_auto_navigation/blob/main/tacking.png)
 
 roslaunch sailboat full_path.launch
 
 This will launch a 2D plot of a boat moving through a collection of waypoints.
 
-![Complete path](https://github.com/brunopinto900/sailboat_auto_navigation/blob/main/tacking.png)
+![Complete path](https://github.com/brunopinto900/sailboat_auto_navigation/blob/main/complete.png)
 
 
 # Acknowledgments
