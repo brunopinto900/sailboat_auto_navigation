@@ -9,11 +9,30 @@ ting System.
 To get a better understanding of this work, please read the PDF report.
 
 # How to install
-git clone 
 
+You must have ROS Kinetic or ROS Melodic to run this code without problems
+
+Run this commands on the terminal
+
+sudo apt-get install ros-VERSION-common-msgs (replace VERSION with kinetic or melodic)
+mkdir -p catkin_ws
+git clone https://github.com/brunopinto900/sailboat_auto_navigation.git
+catkin build
+source ~/catkin_ws/devel/setup.bash
 
 # Usage
 
+roslaunch sailboat upwind_TACK.launch
+
+This will launch a 2D plot of a boat moving towards the goal in the direction of the wind.
+
+![Tacking upwind](http://url/to/img.png)
+
+roslaunch sailboat full_path.launch
+
+This will launch a 2D plot of a boat moving through a collection of waypoints.
+
+![Complete path](http://url/to/img.png)
 
 
 # Acknowledgments
