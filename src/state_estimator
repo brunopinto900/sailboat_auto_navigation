@@ -12,14 +12,6 @@ from Model.Model import Models as MODEL
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-# concluir modelos velocity
-# live plot
-# Ver como converter os radianos, angulos e velocity heading, latitude e longitude e cartesianas gps
-#sensor equations
-# design Q and R matrices
-# is F linearized before or after the prediciton step
-#sensor model or just add some noise
-# frequency updates e outras praticas, falha de sensores, etc., sample time PID/KF, sample time sensores, control loop ?
 
 class state_estimator(object):
 
