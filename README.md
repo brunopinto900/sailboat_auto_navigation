@@ -1,5 +1,4 @@
-# sailboat_auto_navigation
-Autopilot for a remote-controlled Sailboat
+ # Autopilot for a remote-controlled Sailboat
 
 This work consists in the development of an autonomous navigation
 system for a radio-controlled sailboat. The objective is to be able to
@@ -8,6 +7,10 @@ geographic points by a base station. All work was done using Robot Opera
 ting System.
 
 To get a better understanding of this work, please read the PDF report.
+
+# Acknowledgments
+
+https://github.com/Maritime-Robotics-Student-Society/sailing-robot/tree/master/src/sailing_robot/scripts
 
 My work is based on work in the following repository
 https://github.com/Maritime-Robotics-Student-Society/sailing-robot/tree/master/src/sailing_robot/scripts
@@ -23,7 +26,8 @@ Southampton College, describes the linear speed based on a polar diagram, it sho
 Simulator described by equations involving, once again, aerodynamic and hydrodynamic forces taking into account how the rudder and sail affect the condition of the boat. 
 Implementation of two state machines (a high level and a low level) that switches via dynamic "switches" based on the boat's position relative to the wind (points of sailing).
 
-The simulator of the English institution uses adaptive algorithms that so much mimic the behavior of a sailor, that is, in real time, the algorithm chooses the best maneuvers based on the adjustment of gains (dynamically) (read the PDF article available in the project dossier, for better understanding).
+The simulator of the English institution uses adaptive algorithms that so much mimic the behavior of a sailor, that is, in real time, the algorithm chooses the best maneuvers
+based on the adjustment of gains (dynamically) (read the PDF article available in the project dossier, for better understanding).
 
 In conclusion:
 
